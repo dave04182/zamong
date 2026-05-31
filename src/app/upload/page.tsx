@@ -8,6 +8,12 @@ const GENRES = ['그림', '사진', '디자인', '단편소설', '시', '수필'
 const LICENSES = ['감상만 허용', '공유 허용', '저장 허용', 'CC BY', 'CC BY-NC']
 const SUGGESTED_TAGS = ['봄', '여름', '가을', '겨울', '자연', '도시', '사람', '감성', '추억', '사랑', '이별', '고독', '희망', '일상', '판타지', '흑백', '빛', '밤', '새벽', '바다']
 
+const DISPLAY_MODES = [
+  { value: 'contain', label: '전체 보기', desc: '작품 전체가 보이게' },
+  { value: 'cover', label: '꽉 채우기', desc: '화면을 가득 채우게' },
+  { value: 'original', label: '원본 크기', desc: '이미지 실제 비율로' },
+]
+
 export default function UploadPage() {
     const router = useRouter()
     const supabase = createClient()
@@ -25,8 +31,10 @@ export default function UploadPage() {
     const [message, setMessage] = useState('')
     const [tags, setTags] = useState<string[]>([])
     const [tagInput, setTagInput] = useState('')
+    const [displayMode, setDisplayMode] = useState('contain')
 
     const isTextGenre = ['단편소설', '시', '수필', '각본'].includes(genre)
+    const isImageGenre = !isTextGenre && genre !== '영상'
 
     function addTag(tag: string) {
         const trimmed = tag.trim().replace(/^#/, '')
@@ -87,6 +95,7 @@ export default function UploadPage() {
             thumbnail_url: thumbnailUrl,
             content_text: isTextGenre ? contentText : null,
             tags,
+            display_mode: isImageGenre ? displayMode : 'contain',
         })
 
         if (error) { setMessage('등록 실패: ' + error.message); setLoading(false); return }
@@ -146,7 +155,7 @@ export default function UploadPage() {
                     {thumbnailPreview && (
                         genre === '영상'
                             ? <video src={thumbnailPreview} controls style={{ width: '100%', maxHeight: '300px', borderRadius: '10px', marginBottom: '10px' }} />
-                            : <img src={thumbnailPreview} alt="preview" style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '10px', marginBottom: '10px' }} />
+                            : <img src={thumbnailPreview} alt="preview" style={{ width: '100%', maxHeight: '300px', objectFit: displayMode === 'cover' ? 'cover' : 'contain', borderRadius: '10px', marginBottom: '10px', background: '#F0EBE0' }} />
                     )}
                     <label style={{ display: 'block', border: '0.5px dashed rgba(110,90,60,0.35)', borderRadius: '10px', padding: '20px', textAlign: 'center', cursor: 'pointer', color: '#AFA79F', fontSize: '13px' }}>
                         {thumbnailPreview ? '파일 변경' : genre === '영상' ? '클릭하여 영상 업로드 (mp4, mov)' : '클릭하여 이미지 업로드'}
@@ -158,6 +167,42 @@ export default function UploadPage() {
                         />
                     </label>
                 </div>
+
+                {/* 표시 방식 — 이미지 장르만 */}
+                {isImageGenre && thumbnailPreview && (
+                    <div style={fieldStyle}>
+                        <label style={labelStyle}>
+                            표시 방식 <span style={{ fontSize: '11px', color: '#AFA79F', fontWeight: 400 }}>갤러리에서 보여지는 방식</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            {DISPLAY_MODES.map(m => (
+                                <button key={m.value} onClick={() => setDisplayMode(m.value)} style={{
+                                    flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
+                                    background: displayMode === m.value ? '#26211C' : '#FFFCF7',
+                                    color: displayMode === m.value ? '#FFFCF7' : '#78706A',
+                                    border: `0.5px solid ${displayMode === m.value ? '#26211C' : 'rgba(110,90,60,0.22)'}`,
+                                    transition: 'all 0.2s',
+                                }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 500, marginBottom: '3px' }}>{m.label}</div>
+                                    <div style={{ fontSize: '11px', opacity: 0.7 }}>{m.desc}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* 미리보기 */}
+                        <div style={{ marginTop: '12px', borderRadius: '10px', overflow: 'hidden', background: '#F0EBE0', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img
+                                src={thumbnailPreview}
+                                alt="preview"
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: displayMode === 'original' ? 'scale-down' : displayMode as 'cover' | 'contain',
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* 작품 설명 */}
                 <div style={fieldStyle}>
@@ -180,8 +225,6 @@ export default function UploadPage() {
                     <label style={labelStyle}>
                         태그 <span style={{ fontSize: '11px', color: '#AFA79F', fontWeight: 400 }}>(최대 10개 · Enter 또는 쉼표로 추가)</span>
                     </label>
-
-                    {/* 태그 입력창 */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 10px', background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', minHeight: '44px', alignItems: 'center' }}>
                         {tags.map(tag => (
                             <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '20px', padding: '3px 10px', fontSize: '12px' }}>
@@ -200,17 +243,11 @@ export default function UploadPage() {
                             />
                         )}
                     </div>
-
-                    {/* 추천 태그 */}
                     <div style={{ marginTop: '10px' }}>
                         <div style={{ fontSize: '11px', color: '#AFA79F', marginBottom: '7px' }}>추천 태그</div>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             {SUGGESTED_TAGS.filter(t => !tags.includes(t)).map(tag => (
-                                <button
-                                    key={tag}
-                                    onClick={() => addTag(tag)}
-                                    style={{ padding: '4px 11px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer', background: '#FFFCF7', color: '#AFA79F', border: '0.5px solid rgba(110,90,60,0.18)', transition: 'all 0.2s' }}
-                                >
+                                <button key={tag} onClick={() => addTag(tag)} style={{ padding: '4px 11px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer', background: '#FFFCF7', color: '#AFA79F', border: '0.5px solid rgba(110,90,60,0.18)', transition: 'all 0.2s' }}>
                                     #{tag}
                                 </button>
                             ))}

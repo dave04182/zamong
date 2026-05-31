@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import ReviewSection from './ReviewSection'
+import ReviewSection from '@/app/works/[id]/ReviewSection'
 
 type Review = {
   id: string
@@ -15,6 +15,7 @@ type Review = {
 
 type Work = {
   id: string
+  user_id: string
   title: string
   genre: string
   description: string | null
@@ -157,6 +158,20 @@ export default function WorkViewer({
     return () => el.removeEventListener('wheel', handleWheel)
   }, [currentIndex])
 
+  useEffect(() => {
+    const work = works.find(w => w.id === initialId)
+    if (!work) return
+    fetch('/api/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workId: initialId,
+        userId: currentUserId,
+        ownerId: work.user_id,
+      }),
+    })
+  }, [])
+  
   return (
     <div
       ref={scrollRef}

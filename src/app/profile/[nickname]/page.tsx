@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import DeleteWorkButton from './DeleteWorkButton'
 
 export default async function ProfilePage({
   params,
@@ -58,11 +59,11 @@ export default async function ProfilePage({
 
   const tabs = isMe
     ? [
-        { id: 'works', label: '작품' },
-        { id: 'likes', label: '좋아요' },
-        { id: 'bookmarks', label: '북마크' },
-        { id: 'reviews', label: '감상문' },
-      ]
+      { id: 'works', label: '작품' },
+      { id: 'likes', label: '좋아요' },
+      { id: 'bookmarks', label: '북마크' },
+      { id: 'reviews', label: '감상문' },
+    ]
     : [{ id: 'works', label: '작품' }]
 
   return (
@@ -79,6 +80,7 @@ export default async function ProfilePage({
               <form action="/auth/signout" method="POST">
                 <button type="submit" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', background: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
               </form>
+              <Link href="/upload" style={{ fontSize: '13px', color: '#FFFCF7', background: '#C17B3F', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>작품 등록</Link>
             </>
           ) : (
             <button style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', background: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer' }}>+ 팔로우</button>
@@ -157,24 +159,29 @@ export default async function ProfilePage({
           works && works.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
               {works.map(work => (
-                <Link key={work.id} href={`/works/${work.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
+                <div key={work.id} style={{ background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.12)', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+                  <Link href={`/works/${work.id}?from=profile&userId=${profile.id}`} style={{ textDecoration: 'none' }}>
                     <div style={{ height: '160px', background: '#F0EBE0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {work.thumbnail_url
                         ? <img src={work.thumbnail_url} alt={work.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <div style={{ textAlign: 'center', padding: '20px' }}>
-                            <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{work.genre}</div>
-                            <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{work.title}</div>
-                          </div>
+                          <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{work.genre}</div>
+                          <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{work.title}</div>
+                        </div>
                       }
                     </div>
-                    <div style={{ padding: '10px 12px 12px' }}>
+                    <div style={{ padding: '10px 12px 8px' }}>
                       <div style={{ display: 'inline-block', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', marginBottom: '5px' }}>{work.genre}</div>
                       <div style={{ fontSize: '13px', fontWeight: 500, color: '#26211C', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work.title}</div>
                       {isMe && <div style={{ fontSize: '11px', color: '#AFA79F' }}>조회 {work.view_count || 0} · 좋아요 {work.like_count || 0}</div>}
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  {isMe && (
+                    <div style={{ padding: '0 12px 12px' }}>
+                      <DeleteWorkButton workId={work.id} />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           ) : (
@@ -193,9 +200,9 @@ export default async function ProfilePage({
                       {item.works?.thumbnail_url
                         ? <img src={item.works.thumbnail_url} alt={item.works.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <div style={{ textAlign: 'center', padding: '20px' }}>
-                            <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{item.works?.genre}</div>
-                            <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{item.works?.title}</div>
-                          </div>
+                          <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{item.works?.genre}</div>
+                          <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{item.works?.title}</div>
+                        </div>
                       }
                     </div>
                     <div style={{ padding: '10px 12px 12px' }}>
@@ -222,9 +229,9 @@ export default async function ProfilePage({
                       {item.works?.thumbnail_url
                         ? <img src={item.works.thumbnail_url} alt={item.works.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <div style={{ textAlign: 'center', padding: '20px' }}>
-                            <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{item.works?.genre}</div>
-                            <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{item.works?.title}</div>
-                          </div>
+                          <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{item.works?.genre}</div>
+                          <div style={{ fontFamily: 'serif', fontSize: '15px', color: '#26211C', lineHeight: 1.5 }}>{item.works?.title}</div>
+                        </div>
                       }
                     </div>
                     <div style={{ padding: '10px 12px 12px' }}>

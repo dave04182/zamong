@@ -1,15 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
+const PAGE_SIZE = 24
+
 export default async function GalleryPage({
     searchParams,
 }: {
-    searchParams: { genre?: string; ai?: string }
+    searchParams: { genre?: string; ai?: string; page?: string }
 }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const genre = searchParams.genre
     const isAi = searchParams.ai === 'true'
+    const page = parseInt(searchParams.page || '1')
+    const from = (page - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
 
     const { data: profile } = user ? await supabase
         .from('profiles')
@@ -19,8 +24,9 @@ export default async function GalleryPage({
 
     let query = supabase
         .from('works')
-        .select('*, profiles(nickname)')
+        .select('*, profiles(nickname)', { count: 'exact' })
         .order('created_at', { ascending: false })
+        .range(from, to)
 
     if (isAi) {
         query = query.eq('is_ai', true)
@@ -29,9 +35,18 @@ export default async function GalleryPage({
         if (genre && genre !== '전체') query = query.eq('genre', genre)
     }
 
-    const { data: works } = await query
+    const { data: works, count } = await query
+    const totalPages = Math.ceil((count || 0) / PAGE_SIZE)
 
     const genres = ['전체', '그림', '사진', '디자인', '단편소설', '시', '수필', '각본', '영상', '현대미술']
+
+    function pageLink(p: number) {
+        const params = new URLSearchParams()
+        if (genre) params.set('genre', genre)
+        if (isAi) params.set('ai', 'true')
+        params.set('page', String(p))
+        return `/gallery?${params.toString()}`
+    }
 
     return (
         <div style={{ minHeight: '100vh', background: '#FDFAF4', fontFamily: "'DM Sans', sans-serif" }}>
@@ -43,6 +58,7 @@ export default async function GalleryPage({
                 <div style={{ display: 'flex', gap: '8px' }}>
                     {user ? (
                         <>
+                            <Link href="/search" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>검색</Link>
                             <Link href={`/profile/${profile?.nickname}`} style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>마이페이지</Link>
                             <form action="/auth/signout" method="POST">
                                 <button type="submit" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', background: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
@@ -74,34 +90,83 @@ export default async function GalleryPage({
                     }}>✨ AI 창작관</Link>
                 </div>
 
+                {/* 작품 수 */}
+                {count !== null && count > 0 && (
+                    <div style={{ fontSize: '13px', color: '#AFA79F', marginBottom: '20px' }}>
+                        총 <span style={{ color: '#26211C', fontWeight: 500 }}>{count}</span>개의 작품
+                    </div>
+                )}
+
                 {/* 작품 그리드 */}
                 {works && works.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
-                        {works.map(work => (
-                            <Link
-                                key={work.id}
-                                href={`/works/${work.id}${isAi ? '?ai=true' : genre && genre !== '전체' ? `?genre=${genre}` : ''}`}
-                                style={{ textDecoration: 'none' }}
-                            >
-                                <div style={{ background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
-                                    <div style={{ height: '180px', background: '#F0EBE0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                        {work.thumbnail_url
-                                            ? <img src={work.thumbnail_url} alt={work.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                            : <div style={{ textAlign: 'center', padding: '20px' }}>
-                                                <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{work.genre}</div>
-                                                <div style={{ fontFamily: 'serif', fontSize: '16px', color: '#26211C', lineHeight: 1.5 }}>{work.title}</div>
-                                            </div>
-                                        }
+                    <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '48px' }}>
+                            {works.map(work => (
+                                <Link
+                                    key={work.id}
+                                    href={`/works/${work.id}${isAi ? '?ai=true' : genre && genre !== '전체' ? `?genre=${genre}` : ''}`}
+                                    style={{ textDecoration: 'none' }}
+                                >
+                                    <div style={{ background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
+                                        <div style={{ height: '180px', background: '#F0EBE0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                            {work.thumbnail_url
+                                                ? <img src={work.thumbnail_url} alt={work.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                : <div style={{ textAlign: 'center', padding: '20px' }}>
+                                                    <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>{work.genre}</div>
+                                                    <div style={{ fontFamily: 'serif', fontSize: '16px', color: '#26211C', lineHeight: 1.5 }}>{work.title}</div>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div style={{ padding: '10px 12px 14px' }}>
+                                            <div style={{ display: 'inline-block', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', marginBottom: '6px' }}>{work.genre}</div>
+                                            <div style={{ fontSize: '13px', fontWeight: 500, color: '#26211C', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work.title}</div>
+                                            <div style={{ fontSize: '11px', color: '#AFA79F' }}>{work.profiles?.nickname}</div>
+                                        </div>
                                     </div>
-                                    <div style={{ padding: '10px 12px 14px' }}>
-                                        <div style={{ display: 'inline-block', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', marginBottom: '6px' }}>{work.genre}</div>
-                                        <div style={{ fontSize: '13px', fontWeight: 500, color: '#26211C', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work.title}</div>
-                                        <div style={{ fontSize: '11px', color: '#AFA79F' }}>{work.profiles?.nickname}</div>
-                                    </div>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
+                                </Link>
+                            ))}
+                        </div>
+
+                        {/* 페이지네이션 */}
+                        {totalPages > 1 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', paddingBottom: '48px' }}>
+                                {/* 이전 */}
+                                {page > 1 ? (
+                                    <Link href={pageLink(page - 1)} style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', textDecoration: 'none', background: '#FFFCF7' }}>‹</Link>
+                                ) : (
+                                    <span style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#D0C8BE', border: '0.5px solid rgba(110,90,60,0.1)', background: '#FDFAF4' }}>‹</span>
+                                )}
+
+                                {/* 페이지 번호 */}
+                                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                    .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                                    .reduce<(number | '...')[]>((acc, p, i, arr) => {
+                                        if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...')
+                                        acc.push(p)
+                                        return acc
+                                    }, [])
+                                    .map((p, i) => p === '...' ? (
+                                        <span key={`dots-${i}`} style={{ padding: '7px 4px', fontSize: '13px', color: '#AFA79F' }}>···</span>
+                                    ) : (
+                                        <Link key={p} href={pageLink(p as number)} style={{
+                                            padding: '7px 12px', borderRadius: '8px', fontSize: '13px', textDecoration: 'none',
+                                            background: page === p ? '#26211C' : '#FFFCF7',
+                                            color: page === p ? '#FFFCF7' : '#78706A',
+                                            border: `0.5px solid ${page === p ? '#26211C' : 'rgba(110,90,60,0.22)'}`,
+                                            fontWeight: page === p ? 500 : 400,
+                                        }}>{p}</Link>
+                                    ))
+                                }
+
+                                {/* 다음 */}
+                                {page < totalPages ? (
+                                    <Link href={pageLink(page + 1)} style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', textDecoration: 'none', background: '#FFFCF7' }}>›</Link>
+                                ) : (
+                                    <span style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#D0C8BE', border: '0.5px solid rgba(110,90,60,0.1)', background: '#FDFAF4' }}>›</span>
+                                )}
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div style={{ textAlign: 'center', padding: '80px 0', color: '#AFA79F', fontSize: '14px' }}>
                         아직 등록된 작품이 없어요.

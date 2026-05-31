@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import ExhibitionSlider from '@/components/ExhibitionSlider'
 
 export default async function Home() {
   const supabase = await createClient()
@@ -19,6 +20,12 @@ export default async function Home() {
     .eq('id', user.id)
     .single() : { data: null }
 
+  const { data: exhibitions } = await supabase
+    .from('exhibitions')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
   return (
     <div style={{ minHeight: '100vh', background: '#FDFAF4', fontFamily: "'DM Sans', sans-serif" }}>
       {/* NAV */}
@@ -27,6 +34,7 @@ export default async function Home() {
           자<span style={{ color: '#C17B3F' }}>몽</span>
         </span>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <Link href="/search" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>검색</Link>
           <Link href="/gallery" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>갤러리</Link>
           {user ? (
             <>
@@ -42,19 +50,27 @@ export default async function Home() {
         </div>
       </nav>
 
-      {/* HERO */}
-      <div style={{ background: '#F7F3EA', borderBottom: '0.5px solid rgba(110,90,60,0.12)', padding: '80px 64px' }}>
-        <p style={{ fontSize: '11px', letterSpacing: '2.5px', color: '#C17B3F', textTransform: 'uppercase', marginBottom: '18px' }}>온라인 전시 플랫폼</p>
-        <h1 style={{ fontFamily: 'serif', fontSize: '48px', fontWeight: 400, color: '#26211C', lineHeight: 1.2, letterSpacing: '-1px', marginBottom: '18px' }}>
-          당신의 작품을<br /><strong style={{ fontWeight: 500 }}>세상에 전시하세요</strong>
-        </h1>
-        <p style={{ fontSize: '15px', color: '#78706A', lineHeight: 1.8, marginBottom: '32px' }}>
-          이메일 하나로 가입하고, 나만의 갤러리를 만들어보세요.<br />
-          그림, 시, 소설, 사진, 영상 — 모든 창작이 여기에.
-        </p>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <Link href="/gallery" style={{ fontSize: '14px', color: '#FFFCF7', background: '#26211C', borderRadius: '10px', padding: '12px 24px', textDecoration: 'none' }}>갤러리 둘러보기</Link>
-          <Link href="/upload" style={{ fontSize: '14px', color: '#26211C', background: 'none', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '10px', padding: '12px 24px', textDecoration: 'none' }}>작품 등록하기</Link>
+      {/* HERO — 좌측 카피 + 우측 기획전 슬라이더 */}
+      <div style={{ background: '#F7F3EA', borderBottom: '0.5px solid rgba(110,90,60,0.12)', padding: '80px 64px', display: 'flex', gap: '64px', alignItems: 'center' }}>
+        {/* 왼쪽 */}
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: '11px', letterSpacing: '2.5px', color: '#C17B3F', textTransform: 'uppercase', marginBottom: '18px' }}>온라인 전시 플랫폼</p>
+          <h1 style={{ fontFamily: 'serif', fontSize: '48px', fontWeight: 400, color: '#26211C', lineHeight: 1.2, letterSpacing: '-1px', marginBottom: '18px' }}>
+            당신의 작품을<br /><strong style={{ fontWeight: 500 }}>세상에 전시하세요</strong>
+          </h1>
+          <p style={{ fontSize: '15px', color: '#78706A', lineHeight: 1.8, marginBottom: '32px' }}>
+            이메일 하나로 가입하고, 나만의 갤러리를 만들어보세요.<br />
+            그림, 시, 소설, 사진, 영상 — 모든 창작이 여기에.
+          </p>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Link href="/gallery" style={{ fontSize: '14px', color: '#FFFCF7', background: '#26211C', borderRadius: '10px', padding: '12px 24px', textDecoration: 'none' }}>갤러리 둘러보기</Link>
+            <Link href="/upload" style={{ fontSize: '14px', color: '#26211C', background: 'none', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '10px', padding: '12px 24px', textDecoration: 'none' }}>작품 등록하기</Link>
+          </div>
+        </div>
+
+        {/* 오른쪽 — 기획전 슬라이더 */}
+        <div style={{ flex: '0 0 360px' }}>
+          <ExhibitionSlider exhibitions={exhibitions || []} />
         </div>
       </div>
 
