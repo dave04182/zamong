@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 const GENRES = ['그림', '사진', '디자인', '단편소설', '시', '수필', '각본', '영상', '현대미술', '기타']
 const LICENSES = ['감상만 허용', '공유 허용', '저장 허용', 'CC BY', 'CC BY-NC']
+const SUGGESTED_TAGS = ['봄', '여름', '가을', '겨울', '자연', '도시', '사람', '감성', '추억', '사랑', '이별', '고독', '희망', '일상', '판타지', '흑백', '빛', '밤', '새벽', '바다']
 
 export default function UploadPage() {
     const router = useRouter()
@@ -22,8 +23,30 @@ export default function UploadPage() {
     const [thumbnailPreview, setThumbnailPreview] = useState('')
     const [loading, setLoading] = useState(false)
     const [message, setMessage] = useState('')
+    const [tags, setTags] = useState<string[]>([])
+    const [tagInput, setTagInput] = useState('')
 
     const isTextGenre = ['단편소설', '시', '수필', '각본'].includes(genre)
+
+    function addTag(tag: string) {
+        const trimmed = tag.trim().replace(/^#/, '')
+        if (!trimmed || tags.includes(trimmed) || tags.length >= 10) return
+        setTags(prev => [...prev, trimmed])
+        setTagInput('')
+    }
+
+    function removeTag(tag: string) {
+        setTags(prev => prev.filter(t => t !== tag))
+    }
+
+    function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault()
+            addTag(tagInput)
+        } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+            setTags(prev => prev.slice(0, -1))
+        }
+    }
 
     function handleThumbnail(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
@@ -42,7 +65,6 @@ export default function UploadPage() {
 
         let thumbnailUrl = ''
 
-        // 썸네일 업로드
         if (thumbnailFile) {
             const ext = thumbnailFile.name.split('.').pop()
             const path = `${user.id}/${Date.now()}.${ext}`
@@ -54,7 +76,6 @@ export default function UploadPage() {
             thumbnailUrl = urlData.publicUrl
         }
 
-        // 작품 DB 저장
         const { error } = await supabase.from('works').insert({
             user_id: user.id,
             title,
@@ -65,6 +86,7 @@ export default function UploadPage() {
             is_ai: isAi,
             thumbnail_url: thumbnailUrl,
             content_text: isTextGenre ? contentText : null,
+            tags,
         })
 
         if (error) { setMessage('등록 실패: ' + error.message); setLoading(false); return }
@@ -151,6 +173,49 @@ export default function UploadPage() {
                     <textarea value={authorNote} onChange={e => setAuthorNote(e.target.value)}
                         placeholder="창작 의도나 과정을 자유롭게 적어주세요"
                         style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }} />
+                </div>
+
+                {/* 태그 */}
+                <div style={fieldStyle}>
+                    <label style={labelStyle}>
+                        태그 <span style={{ fontSize: '11px', color: '#AFA79F', fontWeight: 400 }}>(최대 10개 · Enter 또는 쉼표로 추가)</span>
+                    </label>
+
+                    {/* 태그 입력창 */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 10px', background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', minHeight: '44px', alignItems: 'center' }}>
+                        {tags.map(tag => (
+                            <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '20px', padding: '3px 10px', fontSize: '12px' }}>
+                                #{tag}
+                                <button onClick={() => removeTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#AFA79F', fontSize: '12px', padding: 0, lineHeight: 1 }}>✕</button>
+                            </span>
+                        ))}
+                        {tags.length < 10 && (
+                            <input
+                                value={tagInput}
+                                onChange={e => setTagInput(e.target.value)}
+                                onKeyDown={handleTagKeyDown}
+                                onBlur={() => tagInput && addTag(tagInput)}
+                                placeholder={tags.length === 0 ? '태그를 입력하세요' : ''}
+                                style={{ border: 'none', outline: 'none', background: 'none', fontSize: '13px', color: '#26211C', fontFamily: 'inherit', minWidth: '120px', flex: 1 }}
+                            />
+                        )}
+                    </div>
+
+                    {/* 추천 태그 */}
+                    <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontSize: '11px', color: '#AFA79F', marginBottom: '7px' }}>추천 태그</div>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {SUGGESTED_TAGS.filter(t => !tags.includes(t)).map(tag => (
+                                <button
+                                    key={tag}
+                                    onClick={() => addTag(tag)}
+                                    style={{ padding: '4px 11px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer', background: '#FFFCF7', color: '#AFA79F', border: '0.5px solid rgba(110,90,60,0.18)', transition: 'all 0.2s' }}
+                                >
+                                    #{tag}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* 저작권 */}

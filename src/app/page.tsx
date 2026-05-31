@@ -3,12 +3,21 @@ import Link from 'next/link'
 
 export default async function Home() {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { data: works } = await supabase
     .from('works')
     .select('*, profiles(nickname)')
     .eq('is_ai', false)
     .order('created_at', { ascending: false })
     .limit(6)
+
+  const { data: profile } = user ? await supabase
+    .from('profiles')
+    .select('nickname')
+    .eq('id', user.id)
+    .single() : { data: null }
 
   return (
     <div style={{ minHeight: '100vh', background: '#FDFAF4', fontFamily: "'DM Sans', sans-serif" }}>
@@ -19,7 +28,16 @@ export default async function Home() {
         </span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <Link href="/gallery" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>갤러리</Link>
-          <Link href="/auth" style={{ fontSize: '13px', color: '#FFFCF7', background: '#26211C', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>로그인</Link>
+          {user ? (
+            <>
+              <Link href={`/profile/${profile?.nickname}`} style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>마이페이지</Link>
+              <form action="/auth/signout" method="POST">
+                <button type="submit" style={{ fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', background: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
+              </form>
+            </>
+          ) : (
+            <Link href="/auth" style={{ fontSize: '13px', color: '#FFFCF7', background: '#26211C', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>로그인</Link>
+          )}
           <Link href="/upload" style={{ fontSize: '13px', color: '#FFFCF7', background: '#C17B3F', borderRadius: '8px', padding: '6px 16px', textDecoration: 'none' }}>작품 등록</Link>
         </div>
       </nav>
