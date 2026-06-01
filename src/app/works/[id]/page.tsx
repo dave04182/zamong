@@ -8,7 +8,7 @@ export default async function WorkPage({
     searchParams,
 }: {
     params: { id: string }
-    searchParams: { genre?: string; ai?: string; from?: string; userId?: string }
+    searchParams: { genre?: string; ai?: string; from?: string; userId?: string; sort?: string }
 }) {
     const supabase = await createClient()
 
@@ -22,10 +22,20 @@ export default async function WorkPage({
 
     if (!work) notFound()
 
+    const sort = searchParams.sort || 'latest'
+
     let query = supabase
         .from('works')
         .select('*, profiles(nickname, bio, avatar_url)')
-        .order('created_at', { ascending: false })
+
+    // 정렬
+    if (sort === 'popular') {
+        query = query.order('like_count', { ascending: false }).order('created_at', { ascending: false })
+    } else if (sort === 'views') {
+        query = query.order('view_count', { ascending: false }).order('created_at', { ascending: false })
+    } else {
+        query = query.order('created_at', { ascending: false })
+    }
 
     if (searchParams.from === 'profile' && searchParams.userId) {
         query = query.eq('user_id', searchParams.userId).eq('is_ai', false)
@@ -63,6 +73,18 @@ export default async function WorkPage({
         .eq('user_id', user.id) : { data: [] }
     const bookmarkedIds = bookmarkedWorks?.map((b: any) => b.work_id) || []
 
+    // 뒤로가기 링크에 sort 유지
+    function backLink() {
+        if (searchParams.from === 'profile' && searchParams.userId) {
+            return `/profile/${work.profiles?.nickname}`
+        }
+        const params = new URLSearchParams()
+        if (searchParams.genre) params.set('genre', searchParams.genre)
+        if (searchParams.ai) params.set('ai', searchParams.ai)
+        if (sort !== 'latest') params.set('sort', sort)
+        return `/gallery?${params.toString()}`
+    }
+
     return (
         <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
             <div style={{ height: '100vh', overflow: 'hidden' }}>
@@ -71,16 +93,7 @@ export default async function WorkPage({
                         자<span style={{ color: '#C17B3F' }}>몽</span>
                     </Link>
                     <span style={{ color: 'rgba(110,90,60,0.3)', fontSize: '14px' }}>|</span>
-                    <Link
-                        href={
-                            searchParams.from === 'profile' && searchParams.userId
-                                ? `/profile/${work.profiles?.nickname}`
-                                : searchParams.genre ? `/gallery?genre=${searchParams.genre}`
-                                : searchParams.ai ? '/gallery?ai=true'
-                                : '/gallery'
-                        }
-                        style={{ fontSize: '13px', color: '#78706A', textDecoration: 'none' }}
-                    >
+                    <Link href={backLink()} style={{ fontSize: '13px', color: '#78706A', textDecoration: 'none' }}>
                         ← {
                             searchParams.from === 'profile' ? '내 작품'
                             : searchParams.genre && searchParams.genre !== '전체' ? searchParams.genre

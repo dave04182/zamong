@@ -16,6 +16,7 @@ export default function EditProfilePage() {
   const [externalLink, setExternalLink] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState('')
+  const [isPublic, setIsPublic] = useState(true)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [userId, setUserId] = useState('')
@@ -38,6 +39,7 @@ export default function EditProfilePage() {
         setMainGenre(profile.main_genre || [])
         setExternalLink(profile.external_link || '')
         setAvatarPreview(profile.avatar_url || '')
+        setIsPublic(profile.is_public ?? true)
       }
     }
     loadProfile()
@@ -82,6 +84,7 @@ export default function EditProfilePage() {
         main_genre: mainGenre,
         external_link: externalLink,
         avatar_url: avatarUrl,
+        is_public: isPublic,
       })
       .eq('id', userId)
 
@@ -152,6 +155,31 @@ export default function EditProfilePage() {
         <div style={fieldStyle}>
           <label style={labelStyle}>외부 링크</label>
           <input value={externalLink} onChange={e => setExternalLink(e.target.value)} placeholder="https://..." style={inputStyle} />
+        </div>
+
+        {/* 프로필 공개 여부 */}
+        <div style={{ ...fieldStyle, background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '10px', padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: '#26211C', marginBottom: '3px' }}>작가 페이지 공개</div>
+            <div style={{ fontSize: '12px', color: '#AFA79F' }}>
+              {isPublic ? '작가 목록에 프로필이 공개돼요' : '작가 목록에서 숨겨져요'}
+            </div>
+          </div>
+          <button
+            onClick={() => setIsPublic(prev => !prev)}
+            style={{
+              width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+              background: isPublic ? '#26211C' : '#D0C8BE',
+              position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+            }}
+          >
+            <div style={{
+              width: '18px', height: '18px', borderRadius: '50%', background: 'white',
+              position: 'absolute', top: '3px',
+              left: isPublic ? '23px' : '3px',
+              transition: 'left 0.2s',
+            }} />
+          </button>
         </div>
 
         {message && <p style={{ fontSize: '13px', color: '#C17B3F', marginBottom: '16px' }}>{message}</p>}

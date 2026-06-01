@@ -6,13 +6,14 @@ const PAGE_SIZE = 24
 export default async function GalleryPage({
     searchParams,
 }: {
-    searchParams: { genre?: string; ai?: string; page?: string }
+    searchParams: { genre?: string; ai?: string; page?: string; sort?: string }
 }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const genre = searchParams.genre
     const isAi = searchParams.ai === 'true'
     const page = parseInt(searchParams.page || '1')
+    const sort = searchParams.sort || 'latest'
     const from = (page - 1) * PAGE_SIZE
     const to = from + PAGE_SIZE - 1
 
@@ -25,8 +26,16 @@ export default async function GalleryPage({
     let query = supabase
         .from('works')
         .select('*, profiles(nickname)', { count: 'exact' })
-        .order('created_at', { ascending: false })
         .range(from, to)
+
+    // 정렬
+    if (sort === 'popular') {
+        query = query.order('like_count', { ascending: false }).order('created_at', { ascending: false })
+    } else if (sort === 'views') {
+        query = query.order('view_count', { ascending: false }).order('created_at', { ascending: false })
+    } else {
+        query = query.order('created_at', { ascending: false })
+    }
 
     if (isAi) {
         query = query.eq('is_ai', true)
@@ -44,9 +53,24 @@ export default async function GalleryPage({
         const params = new URLSearchParams()
         if (genre) params.set('genre', genre)
         if (isAi) params.set('ai', 'true')
+        if (sort !== 'latest') params.set('sort', sort)
         params.set('page', String(p))
         return `/gallery?${params.toString()}`
     }
+
+    function sortLink(s: string) {
+        const params = new URLSearchParams()
+        if (genre) params.set('genre', genre)
+        if (isAi) params.set('ai', 'true')
+        params.set('sort', s)
+        return `/gallery?${params.toString()}`
+    }
+
+    const SORTS = [
+        { value: 'latest', label: '최신순' },
+        { value: 'popular', label: '인기순' },
+        { value: 'views', label: '조회순' },
+    ]
 
     return (
         <div style={{ minHeight: '100vh', background: '#FDFAF4', fontFamily: "'DM Sans', sans-serif" }}>
@@ -73,29 +97,45 @@ export default async function GalleryPage({
 
             <div style={{ padding: '32px 64px' }}>
                 {/* 장르 필터 */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '32px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
                     {genres.map(g => (
-                        <Link key={g} href={`/gallery?genre=${g}`} style={{
+                        <Link key={g} href={`/gallery?genre=${g}${sort !== 'latest' ? `&sort=${sort}` : ''}`} style={{
                             padding: '7px 15px', borderRadius: '20px', fontSize: '13px', textDecoration: 'none',
                             background: (!isAi && (genre === g || (!genre && g === '전체'))) ? '#26211C' : '#FFFCF7',
                             color: (!isAi && (genre === g || (!genre && g === '전체'))) ? '#FFFCF7' : '#78706A',
                             border: '0.5px solid rgba(110,90,60,0.22)',
-                        }}>{g}</Link>
+                        }}>{g === '전체' ? '전체관' : `${g}관`}</Link>
                     ))}
-                    <Link href="/gallery?ai=true" style={{
+                    <Link href={`/gallery?ai=true${sort !== 'latest' ? `&sort=${sort}` : ''}`} style={{
                         padding: '7px 15px', borderRadius: '20px', fontSize: '13px', textDecoration: 'none',
-                        background: isAi ? '#26211C' : '#EFE6D5',
-                        color: isAi ? '#FFFCF7' : '#8A6F4A',
+                        background: isAi ? '#26211C' : '#FFFCF7',
+                        color: isAi ? '#FFFCF7' : '#78706A',
+                        border: '0.5px solid rgba(110,90,60,0.22)',
+                    }}>AI 창작관</Link>
+                    <Link href="/artists" style={{
+                        padding: '7px 15px', borderRadius: '20px', fontSize: '13px', textDecoration: 'none',
+                        background: '#EFE6D5', color: '#8A6F4A',
                         border: '0.5px solid #EDD9BC',
-                    }}>✨ AI 창작관</Link>
+                    }}>✦ 작가관</Link>
                 </div>
 
-                {/* 작품 수 */}
-                {count !== null && count > 0 && (
-                    <div style={{ fontSize: '13px', color: '#AFA79F', marginBottom: '20px' }}>
-                        총 <span style={{ color: '#26211C', fontWeight: 500 }}>{count}</span>개의 작품
+                {/* 작품 수 + 정렬 */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '13px', color: '#AFA79F' }}>
+                        총 <span style={{ color: '#26211C', fontWeight: 500 }}>{count || 0}</span>개의 작품
                     </div>
-                )}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                        {SORTS.map(s => (
+                            <Link key={s.value} href={sortLink(s.value)} style={{
+                                padding: '5px 12px', borderRadius: '20px', fontSize: '12px', textDecoration: 'none',
+                                background: sort === s.value ? '#26211C' : 'none',
+                                color: sort === s.value ? '#FFFCF7' : '#AFA79F',
+                                border: `0.5px solid ${sort === s.value ? '#26211C' : 'rgba(110,90,60,0.22)'}`,
+                                transition: 'all 0.2s',
+                            }}>{s.label}</Link>
+                        ))}
+                    </div>
+                </div>
 
                 {/* 작품 그리드 */}
                 {works && works.length > 0 ? (
@@ -104,7 +144,7 @@ export default async function GalleryPage({
                             {works.map(work => (
                                 <Link
                                     key={work.id}
-                                    href={`/works/${work.id}${isAi ? '?ai=true' : genre && genre !== '전체' ? `?genre=${genre}` : ''}`}
+                                    href={`/works/${work.id}${isAi ? '?ai=true' : genre && genre !== '전체' ? `?genre=${genre}` : ''}${sort !== 'latest' ? `${isAi || (genre && genre !== '전체') ? '&' : '?'}sort=${sort}` : ''}`}
                                     style={{ textDecoration: 'none' }}
                                 >
                                     <div style={{ background: '#FFFCF7', border: '0.5px solid rgba(110,90,60,0.12)', borderRadius: '12px', overflow: 'hidden' }}>
@@ -120,7 +160,11 @@ export default async function GalleryPage({
                                         <div style={{ padding: '10px 12px 14px' }}>
                                             <div style={{ display: 'inline-block', background: '#EFE6D5', color: '#8A6F4A', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', marginBottom: '6px' }}>{work.genre}</div>
                                             <div style={{ fontSize: '13px', fontWeight: 500, color: '#26211C', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{work.title}</div>
-                                            <div style={{ fontSize: '11px', color: '#AFA79F' }}>{work.profiles?.nickname}</div>
+                                            <div style={{ fontSize: '11px', color: '#AFA79F', display: 'flex', gap: '8px' }}>
+                                                <span>{work.profiles?.nickname}</span>
+                                                {sort === 'popular' && <span>♥ {work.like_count || 0}</span>}
+                                                {sort === 'views' && <span>👁 {work.view_count || 0}</span>}
+                                            </div>
                                         </div>
                                     </div>
                                 </Link>
@@ -128,16 +172,14 @@ export default async function GalleryPage({
                         </div>
 
                         {/* 페이지네이션 */}
-                        {totalPages > 1 && (
+                        {totalPages >= 1 && (
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', paddingBottom: '48px' }}>
-                                {/* 이전 */}
                                 {page > 1 ? (
                                     <Link href={pageLink(page - 1)} style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', textDecoration: 'none', background: '#FFFCF7' }}>‹</Link>
                                 ) : (
                                     <span style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#D0C8BE', border: '0.5px solid rgba(110,90,60,0.1)', background: '#FDFAF4' }}>‹</span>
                                 )}
 
-                                {/* 페이지 번호 */}
                                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                                     .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                                     .reduce<(number | '...')[]>((acc, p, i, arr) => {
@@ -158,7 +200,6 @@ export default async function GalleryPage({
                                     ))
                                 }
 
-                                {/* 다음 */}
                                 {page < totalPages ? (
                                     <Link href={pageLink(page + 1)} style={{ padding: '7px 12px', borderRadius: '8px', fontSize: '13px', color: '#78706A', border: '0.5px solid rgba(110,90,60,0.22)', textDecoration: 'none', background: '#FFFCF7' }}>›</Link>
                                 ) : (

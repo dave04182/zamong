@@ -50,8 +50,9 @@ export default function WorkViewer({
   const router = useRouter()
   const supabase = createClient()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fixedWorks = useRef(works)
   const [currentIndex, setCurrentIndex] = useState(
-    works.findIndex(w => w.id === initialId) || 0
+    fixedWorks.current.findIndex(w => w.id === initialId) || 0
   )
   const isScrolling = useRef(false)
   const [darkMode, setDarkMode] = useState(true)
@@ -59,7 +60,7 @@ export default function WorkViewer({
   const [likedIds, setLikedIds] = useState<string[]>(initialLikedIds)
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(initialBookmarkedIds)
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>(
-    Object.fromEntries(works.map(w => [w.id, w.like_count || 0]))
+    Object.fromEntries(fixedWorks.current.map(w => [w.id, w.like_count || 0]))
   )
 
   const isTextGenre = (genre: string) => ['단편소설', '시', '수필', '각본'].includes(genre)
@@ -67,16 +68,32 @@ export default function WorkViewer({
   async function handleLike(workId: string) {
     if (!currentUserId) { window.location.href = '/auth'; return }
     const already = likedIds.includes(workId)
+
     if (already) {
-      await supabase.from('likes').delete().eq('user_id', currentUserId).eq('work_id', workId)
-      await supabase.from('works').update({ like_count: Math.max(0, (likeCounts[workId] || 1) - 1) }).eq('id', workId)
       setLikedIds(prev => prev.filter(id => id !== workId))
       setLikeCounts(prev => ({ ...prev, [workId]: Math.max(0, (prev[workId] || 1) - 1) }))
     } else {
-      await supabase.from('likes').insert({ user_id: currentUserId, work_id: workId })
-      await supabase.from('works').update({ like_count: (likeCounts[workId] || 0) + 1 }).eq('id', workId)
       setLikedIds(prev => [...prev, workId])
       setLikeCounts(prev => ({ ...prev, [workId]: (prev[workId] || 0) + 1 }))
+    }
+
+    const res = await fetch('/api/like', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workId, action: already ? 'unlike' : 'like' }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      if (already) {
+        setLikedIds(prev => [...prev, workId])
+      } else {
+        setLikedIds(prev => prev.filter(id => id !== workId))
+      }
+      setLikeCounts(prev => ({ ...prev, [workId]: data.like_count || prev[workId] }))
+    } else {
+      setLikeCounts(prev => ({ ...prev, [workId]: data.like_count }))
     }
   }
 
@@ -96,6 +113,8 @@ export default function WorkViewer({
     const el = scrollRef.current
     if (!el || isScrolling.current) return
     isScrolling.current = true
+    setCurrentIndex(idx)
+    setShowReviews(false)
 
     const sectionHeight = window.innerHeight - 56
     const targetY = idx * sectionHeight
@@ -116,11 +135,9 @@ export default function WorkViewer({
         requestAnimationFrame(step)
       } else {
         isScrolling.current = false
-        setCurrentIndex(idx)
-        setShowReviews(false)
         const params = new URLSearchParams(window.location.search)
         const query = params.toString() ? `?${params.toString()}` : ''
-        router.replace(`/works/${works[idx].id}${query}`, { scroll: false })
+        window.history.replaceState(null, '', `/works/${fixedWorks.current[idx].id}${query}`)
       }
     }
 
@@ -128,7 +145,7 @@ export default function WorkViewer({
   }
 
   useEffect(() => {
-    const idx = works.findIndex(w => w.id === initialId)
+    const idx = fixedWorks.current.findIndex(w => w.id === initialId)
     if (idx > 0 && scrollRef.current) {
       const sectionHeight = window.innerHeight - 56
       scrollRef.current.scrollTop = idx * sectionHeight
@@ -145,9 +162,18 @@ export default function WorkViewer({
       const textPanel = target.closest('[data-text-panel]')
       if (textPanel) return
 
+      const infoPanel = target.closest('[data-info-panel]') as HTMLElement | null
+      if (infoPanel) {
+        const { scrollTop, scrollHeight, clientHeight } = infoPanel
+        const atTop = scrollTop === 0
+        const atBottom = scrollTop + clientHeight >= scrollHeight - 1
+        if (e.deltaY > 0 && !atBottom) return
+        if (e.deltaY < 0 && !atTop) return
+      }
+
       e.preventDefault()
       if (isScrolling.current) return
-      if (e.deltaY > 0 && currentIndex < works.length - 1) {
+      if (e.deltaY > 0 && currentIndex < fixedWorks.current.length - 1) {
         scrollToIndex(currentIndex + 1)
       } else if (e.deltaY < 0 && currentIndex > 0) {
         scrollToIndex(currentIndex - 1)
@@ -159,7 +185,7 @@ export default function WorkViewer({
   }, [currentIndex])
 
   useEffect(() => {
-    const work = works.find(w => w.id === initialId)
+    const work = fixedWorks.current.find(w => w.id === initialId)
     if (!work) return
     fetch('/api/view', {
       method: 'POST',
@@ -171,14 +197,14 @@ export default function WorkViewer({
       }),
     })
   }, [])
-  
+
   return (
     <div
       ref={scrollRef}
       style={{ height: 'calc(100vh - 56px)', marginTop: '56px', overflowY: 'scroll' }}
     >
-      <div style={{ height: `calc((100vh - 56px) * ${works.length})` }}>
-        {works.map((work, idx) => (
+      <div style={{ height: `calc((100vh - 56px) * ${fixedWorks.current.length})` }}>
+        {fixedWorks.current.map((work, idx) => (
           <div
             key={work.id}
             style={{
@@ -247,13 +273,16 @@ export default function WorkViewer({
               position: 'relative',
               overflow: 'hidden',
             }}>
-              {/* 작품 정보 */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                overflowY: 'auto',
-                display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                padding: '52px',
-              }}>
+              <div
+                data-info-panel="true"
+                style={{
+                  position: 'absolute', inset: 0,
+                  overflowY: 'auto',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                  padding: '52px',
+                  scrollbarWidth: 'none',
+                }}
+              >
                 <div style={{ fontSize: '10px', letterSpacing: '3px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '20px' }}>
                   No. {String(idx + 1).padStart(3, '0')}
                 </div>
@@ -277,6 +306,7 @@ export default function WorkViewer({
                 </div>
 
                 <div style={{ width: '28px', height: '1px', background: '#EDD9BC', marginBottom: '22px' }}></div>
+
                 {work.tags && work.tags.length > 0 && (
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
                     {work.tags.map(tag => (
@@ -286,6 +316,7 @@ export default function WorkViewer({
                     ))}
                   </div>
                 )}
+
                 {work.description && (
                   <>
                     <div style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#AFA79F', textTransform: 'uppercase', marginBottom: '8px' }}>작품 설명</div>
@@ -334,7 +365,7 @@ export default function WorkViewer({
                   >
                     {bookmarkedIds.includes(work.id) ? '★' : '☆'} 북마크
                   </button>
-                  {idx === currentIndex && (
+                  {Math.abs(idx - currentIndex) <= 1 && (
                     <button
                       onClick={() => setShowReviews(true)}
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '0.5px solid rgba(110,90,60,0.22)', borderRadius: '8px', padding: '8px 16px', fontSize: '12px', color: '#78706A', cursor: 'pointer', fontFamily: 'inherit' }}
@@ -344,7 +375,7 @@ export default function WorkViewer({
                   )}
                 </div>
 
-                {idx < works.length - 1 && (
+                {idx < fixedWorks.current.length - 1 && (
                   <div style={{ position: 'absolute', bottom: '28px', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', opacity: 0.4 }}>
                     <span style={{ fontSize: '9px', letterSpacing: '2px', color: '#78706A', textTransform: 'uppercase' }}>scroll</span>
                     <div style={{ width: '14px', height: '14px', borderRight: '1.5px solid #AFA79F', borderBottom: '1.5px solid #AFA79F', transform: 'rotate(45deg)', marginTop: '-4px' }}></div>
@@ -352,7 +383,7 @@ export default function WorkViewer({
                 )}
               </div>
 
-              {/* 감상문 패널 — 아래에서 슬라이드 업 */}
+              {/* 감상문 패널 */}
               {idx === currentIndex && (
                 <div style={{
                   position: 'absolute', inset: 0,
